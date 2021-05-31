@@ -68,6 +68,47 @@ func Test_NodeSpillStats(t *testing.T) {
 	_ = os.Remove(db.Path)
 }
 
+func Test_NodeRebalanceStats(t *testing.T) {
+	insertedKeys := make([]string, 0)
+	db := createDB(nil)
+	_ = db.Update(func(tx *bolt.Tx) error {
+		b, _ := tx.CreateBucket([]byte("test"))
+		for i := 0; i < 500; i++ {
+			r := rand.New(rand.NewSource(time.Now().UnixNano()))
+			val := strconv.Itoa(r.Int())
+			if err := b.Put([]byte(val), []byte(val)); err != nil {
+				return err
+			}
+			if i%2 == 0 {
+				insertedKeys = append(insertedKeys, val)
+			}
+		}
+		return nil
+	})
+	fmt.Println("======== stats ==============")
+	db.PrintStats()
+	fmt.Println("======== pages ==============")
+	db.pagesStats()
+
+	fmt.Println("======== open again ==============")
+	_ = db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte("test"))
+		for _, key := range insertedKeys {
+			if err := b.Delete([]byte(key)); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	fmt.Println("======== stats ==============")
+	db.PrintStats()
+	fmt.Println("======== pages ==============")
+	db.pagesStats()
+
+	_ = db.Close()
+	_ = os.Remove(db.Path)
+}
+
 // PrintStats prints the database stats
 func (db *DB) PrintStats() {
 	var stats = db.Stats()
